@@ -147,6 +147,18 @@ class WizardGUI:
         with col1:
             num_players = st.selectbox("Anzahl Spieler", [3, 4, 5, 6], index=1, key="num_players_setup")
             round_number = st.selectbox("Startrunde", list(range(1, 21)), index=0, key="round_number_setup")
+
+            # --- VALIDIERUNG HINZUGEFÜGT ---
+            max_rounds = 60 // num_players
+            is_valid_round = round_number <= max_rounds
+
+            if not is_valid_round:
+                st.error(
+                    f"Bei {num_players} Spielern können maximal {max_rounds} Runden gespielt werden (60 Karten). "
+                    f"Bitte wählen Sie eine valide Startrunde."
+                )
+            # --- ENDE VALIDIERUNG ---
+            
             st.subheader("Spieloptionen")
             deal_digitally = st.checkbox("Karten digital verteilen", value=True, key="deal_digitally")
             confirm_play = st.checkbox("Karten ausspielen bestätigen", value=False, key="confirm_play")
@@ -156,7 +168,7 @@ class WizardGUI:
             human_players = [i for i, t in player_types.items() if t == "human"]
             human_player_id = st.selectbox("Hauptspieler (Sie)", human_players, format_func=lambda x: f"Spieler {x+1}") if human_players else 0
 
-        if st.button("Spiel erstellen"):
+        if st.button("Spiel erstellen", disabled=not is_valid_round):
             self.save_state_for_undo()
             self.game_manager.start_new_game(num_players, player_types, human_player_id, round_number, deal_digitally, confirm_play)
             st.rerun()
