@@ -42,7 +42,7 @@ graph TD
 
     subgraph "Bayes-optimale Backpropagation"
         K[Bayes-optimale Backpropagation] --> K1{Reward R durch Pfad zurückpropagieren};
-        K1 --> K2[Reward für jeden Schritt zeitlich diskontieren (gamma^t)];
+        K1 --> K2[Reward für jeden Schritt zeitlich diskontieren (gamma hoch t)];
         K2 --> K3[Reward kausal gewichten (1.0 für Spieler P, 0.8 für andere)];
         K3 --> K4[Reward-Beobachtung im BayesianRewardEstimator aktualisieren];
         K4 --> K5[Update für spezifischen Schlüssel (Kontext + Karte)];
