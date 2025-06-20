@@ -1,5 +1,10 @@
 # Wizard Assistant
 
+Seit einigen Jahren Fasziniert mich das Kartenspiel Wizard. Zu beginn ist es im wesentlichen ein Glücksspiel, bei dem man Wahrscheinlichkeiten schätzen kann, aber das Ergebnis mehr primär vom Zufall geprägt ist. Doch es wandelt sich mit jeder Runde. Während der Zufallseinfluss abnimmt, wird es schwerer Wahrscheinlichkeiten zu schätzen, aufgrund der wachsenden Anzahl möglicher Spielpfade.
+
+Seither treibt mich die Frage um: Ist Wizard Lösbar? Kann man es Bayes Optimal spielen? Wie?
+Immer bessere KI Modelle haben es mir erlaubt diesen Assistenten zu schreiben. Eigentlich habe ich nur den Algorithmus entwickelt/vorgegeben.
+
 Dieses Repository enthält den Code für einen simulationsbasierten Assistenten für das Kartenspiel "Wizard". Der Assistent ist in der Lage, sowohl Empfehlungen für das abzugebende Gebot (`Bid Recommendation`) als auch für die auszuspielende Karte (`Card Recommendation`) zu geben.
 
 Der Kern des Assistenten basiert auf Monte-Carlo-Simulationen, die durch einen Bayes-optimalen Ansatz verfeinert werden, um aus den Simulationsergebnissen zu lernen und die Empfehlungen kontinuierlich zu verbessern.
