@@ -148,7 +148,7 @@ class WizardGUI:
             num_players = st.selectbox("Anzahl Spieler", [3, 4, 5, 6], index=1, key="num_players_setup")
             round_number = st.selectbox("Startrunde", list(range(1, 21)), index=0, key="round_number_setup")
 
-            # --- VALIDIERUNG HINZUGEFÜGT ---
+            # --- VALIDIERUNG ---
             max_rounds = 60 // num_players
             is_valid_round = round_number <= max_rounds
 
@@ -157,11 +157,15 @@ class WizardGUI:
                     f"Bei {num_players} Spielern können maximal {max_rounds} Runden gespielt werden (60 Karten). "
                     f"Bitte wählen Sie eine valide Startrunde."
                 )
-            # --- ENDE VALIDIERUNG ---
             
             st.subheader("Spieloptionen")
             deal_digitally = st.checkbox("Karten digital verteilen", value=True, key="deal_digitally")
             confirm_play = st.checkbox("Karten ausspielen bestätigen", value=False, key="confirm_play")
+            
+            # +++ NEUE CHECKBOX +++
+            last_wizard_wins = st.checkbox("Letzter Zauberer gewinnt Stich", value=False, key="last_wizard_wins_rule", help="Wenn aktiv, gewinnt der letzte gespielte Zauberer den Stich. Standardmäßig gewinnt der erste.")
+            # +++ ENDE NEUE CHECKBOX +++
+
         with col2:
             st.subheader("Spielertypen")
             player_types = {i: st.selectbox(f"Spieler {i+1}", ["human", "computer"], key=f"player_type_{i}") for i in range(num_players)}
@@ -170,9 +174,18 @@ class WizardGUI:
 
         if st.button("Spiel erstellen", disabled=not is_valid_round):
             self.save_state_for_undo()
-            self.game_manager.start_new_game(num_players, player_types, human_player_id, round_number, deal_digitally, confirm_play)
-            st.rerun()
-            
+            # +++ AUFRUF AKTUALISIERT +++
+            self.game_manager.start_new_game(
+                num_players, 
+                player_types, 
+                human_player_id, 
+                round_number, 
+                deal_digitally, 
+                confirm_play,
+                last_wizard_wins # Neuer Parameter wird übergeben
+            )
+            # +++ ENDE AKTUALISIERUNG +++
+            st.rerun()            
     def human_hand_input_stage(self):
         st.header(f"📜 Runde {self.game_manager.game_state.round_number} - Ihre Karten eingeben")
         st.info("Da die Option 'Karten digital verteilen' deaktiviert ist, geben Sie bitte Ihre Handkarten ein.")
