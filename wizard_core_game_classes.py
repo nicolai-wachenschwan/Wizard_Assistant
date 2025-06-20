@@ -112,6 +112,7 @@ class GameState:
     played_cards: Set[Card]
     current_player: int
     trick_leader: int
+    last_wizard_wins: bool = False
     
     def copy(self):
         return copy.deepcopy(self)
@@ -164,7 +165,8 @@ class WizardRules:
     @staticmethod
     def determine_trick_winner(
         trick_cards: List[Tuple[int, Card]],
-        trump_suit: Optional[Suit]
+        trump_suit: Optional[Suit],
+        last_wizard_wins: bool = False  # Neuer Parameter für die Regel
     ) -> int:
         """
         Bestimmt den Gewinner des gerade beendeten Stichs `trick_cards`
@@ -173,10 +175,13 @@ class WizardRules:
         if not trick_cards:
             return -1
         
-        # 1) Wizard schlägt immer: Der erste gespielte Wizard gewinnt
+        # 1) Wizard schlägt immer: Der erste oder letzte gespielte Wizard gewinnt
         wizard_plays = [(p, c) for p, c in trick_cards if c.suit == Suit.WIZARD]
         if wizard_plays:
-            return wizard_plays[0][0]
+            if last_wizard_wins:
+                return wizard_plays[-1][0]  # Der letzte gespielte Wizard gewinnt
+            else:
+                return wizard_plays[0][0]   # Der erste gespielte Wizard gewinnt (Standard)
         
         # 2) Bestimme die führende Farbe (erste Nicht‐Jester‐Karte)
         lead_suit: Optional[Suit] = None
