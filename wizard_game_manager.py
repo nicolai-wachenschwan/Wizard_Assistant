@@ -20,13 +20,15 @@ class WizardGameManager:
         # Add new attributes for game options
         self.deal_digitally: bool = True
         self.confirm_play: bool = False
+        self.last_wizard_wins: bool = False
 
-    def start_new_game(self, num_players: int, player_types: Dict[int, str], human_player_id: int, start_round: int = 1, deal_digitally: bool = True, confirm_play: bool = False):
+    def start_new_game(self, num_players: int, player_types: Dict[int, str], human_player_id: int, start_round: int = 1, deal_digitally: bool = True, confirm_play: bool = False,last_wizard_wins: bool = False):
         """Initialisiert ein komplett neues Spiel."""
         self.player_types = player_types
         self.human_player_id = human_player_id
         self.deal_digitally = deal_digitally
         self.confirm_play = confirm_play
+        self.last_wizard_wins = last_wizard_wins
         self.total_scores = {p: 0 for p in range(num_players)}
         self.start_new_round(round_number=start_round, num_players=num_players)
 
@@ -60,7 +62,6 @@ class WizardGameManager:
         deck = WizardDeck()
         deck.shuffle()
         
-        # NEU: Unterscheidung zwischen digitaler und analoger Verteilung
         if self.deal_digitally:
             hands = {p: sorted(deck.deal_cards(round_number)) for p in players}
             trump_suit = None
@@ -69,7 +70,6 @@ class WizardGameManager:
                 if trump_card.suit not in [Suit.WIZARD, Suit.JESTER]:
                     trump_suit = trump_card.suit
         else:
-            # Bei analoger Verteilung Hände leer lassen und Trumpf nicht setzen
             hands = {p: [] for p in players}
             trump_suit = None
 
@@ -77,7 +77,8 @@ class WizardGameManager:
             round_number=round_number, current_trick=0, trump_suit=trump_suit,
             players=players, hands=hands, bids={}, tricks_won={p: 0 for p in players},
             current_trick_cards=[], played_cards=set(),
-            current_player=start_player, trick_leader=start_player
+            current_player=start_player, trick_leader=start_player,
+            last_wizard_wins=self.last_wizard_wins  # NEUES ARGUMENT
         )
         self.current_round_scores = {p: 0 for p in players}
         self.game_phase = "bidding"
@@ -138,7 +139,9 @@ class WizardGameManager:
             return
             
         winner = WizardRules.determine_trick_winner(
-            self.game_state.current_trick_cards, self.game_state.trump_suit
+            self.game_state.current_trick_cards, 
+            self.game_state.trump_suit,
+            self.game_state.last_wizard_wins # NEUES ARGUMENT
         )
         self._save_last_trick(self.game_state.current_trick_cards, winner)
         
