@@ -2,8 +2,11 @@
 
 Seit einigen Jahren Fasziniert mich das Kartenspiel Wizard. Zu beginn ist es im wesentlichen ein Glücksspiel, bei dem man Wahrscheinlichkeiten schätzen kann, aber das Ergebnis mehr primär vom Zufall geprägt ist. Doch es wandelt sich mit jeder Runde. Während der Zufallseinfluss abnimmt, wird es schwerer Wahrscheinlichkeiten zu schätzen, aufgrund der wachsenden Anzahl möglicher Spielpfade.
 
-Seither treibt mich die Frage um: Ist Wizard Lösbar? Kann man es Bayes Optimal spielen? Wie?
-Immer bessere KI Modelle haben es mir erlaubt diesen Assistenten zu schreiben. Eigentlich habe ich nur den Algorithmus entwickelt/vorgegeben.
+Seither treibt mich die Frage um: Ist Wizard Algorithmisch Lösbar? Kann eine KI besser Wizard Spielen als ich? Kann man es Bayes Optimal spielen? Wie?
+Immer bessere KI Modelle haben es mir erlaubt diesen Assistenten zu schreiben. Eigentlich habe ich nur den Algorithmus entwickelt/vorgegeben, der Rest ist bis auf ein paar kleinere Eingriffe KI generiert, inklusive dem Rest der Beschreibung.
+
+Das Projekt ist kein GUI in Perfektion, aber Funktional. Bis auf den "Computer Auto Bid" Knopf, der ist irgendwann zwischendurch kaputt gegangen.
+Probiere es gerne unter https://wizardassistant.streamlit.app/ aus! Du kannst wahlweise gegen den Computer spielen oder es als deinen persönlichen Assistenten für die Kartenrunde verwenden!
 
 Dieses Repository enthält den Code für einen simulationsbasierten Assistenten für das Kartenspiel "Wizard". Der Assistent ist in der Lage, sowohl Empfehlungen für das abzugebende Gebot (`Bid Recommendation`) als auch für die auszuspielende Karte (`Card Recommendation`) zu geben.
 
