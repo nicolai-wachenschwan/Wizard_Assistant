@@ -1,4 +1,5 @@
 # Wizard Assistant
+![image](https://github.com/user-attachments/assets/dff823b3-a27e-4130-8614-fb16850d6782)
 
 Seit einigen Jahren Fasziniert mich das Kartenspiel Wizard. Zu beginn ist es im wesentlichen ein Glücksspiel, bei dem man Wahrscheinlichkeiten schätzen kann, aber das Ergebnis mehr primär vom Zufall geprägt ist. Doch es wandelt sich mit jeder Runde. Während der Zufallseinfluss abnimmt, wird es schwerer Wahrscheinlichkeiten zu schätzen, aufgrund der wachsenden Anzahl möglicher Spielpfade.
 
