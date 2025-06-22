@@ -518,14 +518,14 @@ class WizardGUI:
 
     def run(self):
         st.title("🧙‍♂️ Wizard Assistant GUI")
-+        # --- title image anzeigen, falls vorhanden ---
-+        if os.path.exists("./1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png"):
-+            try:
-+                img = Image.open("./1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png")
-+                st.image(img, use_column_width=True)
-+            except Exception:
-+                # Falls die Datei nicht lesbar ist, einfach weiter ohne Fehler
-+                pass
+        # --- title image anzeigen, falls vorhanden ---
+        if os.path.exists("./1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png"):
+            try:
+                img = Image.open("./1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png")
+                st.image(img, use_column_width=True)
+            except Exception:
+                # Falls die Datei nicht lesbar ist, einfach weiter ohne Fehler
+                pass
         self.sidebar_controls()
         
         game_phase = self.game_manager.game_phase
