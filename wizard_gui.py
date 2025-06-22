@@ -518,6 +518,14 @@ class WizardGUI:
 
     def run(self):
         st.title("🧙‍♂️ Wizard Assistant GUI")
++        # --- title image anzeigen, falls vorhanden ---
++        if os.path.exists("title_image.jpg"):
++            try:
++                img = Image.open("title_image.jpg")
++                st.image(img, use_column_width=True)
++            except Exception:
++                # Falls die Datei nicht lesbar ist, einfach weiter ohne Fehler
++                pass
         self.sidebar_controls()
         
         game_phase = self.game_manager.game_phase
