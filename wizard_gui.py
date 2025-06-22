@@ -519,7 +519,9 @@ class WizardGUI:
     def run(self):
         st.title("🧙‍♂️ Wizard Assistant GUI")
         #img = Image.open("./1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png")
-        st.image("1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png")
+        col1, col2 = st.columns([1, 1])
+        with col1:
+           st.image("1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png")
         self.sidebar_controls()
         
         game_phase = self.game_manager.game_phase
