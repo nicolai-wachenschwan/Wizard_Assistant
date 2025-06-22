@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 import copy 
+import os
 
 # Kern-Klassen und der neue Game-Manager
 from wizard_core_game_classes import Card, Suit, WizardRules
