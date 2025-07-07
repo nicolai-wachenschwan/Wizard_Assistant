@@ -30,6 +30,8 @@ class WizardGUI:
 
         # Initialisiere KI-Parameter im Session State, falls nicht vorhanden
         self.init_ai_params()
+        if 'player_names' not in st.session_state:
+            st.session_state.player_names = {}
         
         if 'history' not in st.session_state:
             st.session_state.history = []
@@ -84,12 +86,17 @@ class WizardGUI:
         text_width, text_height = bbox[2] - bbox[0], bbox[3] - bbox[1]
         draw.text(((width - text_width) / 2, (height - text_height) / 2), text, fill=color, font=font)
         return img
+
+    def get_player_name(self, player_id: int) -> str:
+        """Returns the custom name for a player if set."""
+        names = st.session_state.get('player_names', {})
+        return names.get(player_id, f"Spieler {player_id + 1}")
     
     def display_game_overview(self):
         game_state = self.game_manager.game_state
         st.header(f"🎮 Runde {game_state.round_number} / Stich {game_state.current_trick + 1}")
         overview_data = [{
-                "Spieler": f"Spieler {p+1} ({'👤' if self.game_manager.player_types.get(p) == 'human' else '🤖'})",
+                "Spieler": f"{self.get_player_name(p)} ({'👤' if self.game_manager.player_types.get(p) == 'human' else '🤖'})",
                 "Gebot": game_state.bids.get(p, 0), "Stiche": game_state.tricks_won.get(p, 0),
                 "Punkte": self.game_manager.current_round_scores.get(p, 0),
                 "Gesamt": self.game_manager.total_scores.get(p, 0)
@@ -104,7 +111,7 @@ class WizardGUI:
             trick_cols = st.columns(len(game_state.players))
             for i, (player, card) in enumerate(game_state.current_trick_cards):
                 with trick_cols[i]:
-                    st.write(f"**Spieler {player+1}**")
+                    st.write(f"**{self.get_player_name(player)}**")
                     st.image(self.create_card_image(card), caption=str(card))
 
     def display_last_trick(self):
@@ -115,14 +122,15 @@ class WizardGUI:
             for i, (player, card) in enumerate(last_trick['cards']):
                 with trick_cols[i]:
                     is_winner = player == last_trick['winner']
-                    st.write(f"**{'🏆 ' if is_winner else ''}Spieler {player+1}{' (Gewinner)' if is_winner else ''}**")
+                    name = self.get_player_name(player)
+                    st.write(f"**{'🏆 ' if is_winner else ''}{name}{' (Gewinner)' if is_winner else ''}**")
                     st.image(self.create_card_image(card), caption=str(card))
 
     def display_round_results(self):
         game_state = self.game_manager.game_state
         st.header(f"📊 Ergebnis von Runde {game_state.round_number}")
         results_data = [{
-            "Spieler": f"Spieler {p+1}", "Gebot": game_state.bids.get(p, 0),
+            "Spieler": self.get_player_name(p), "Gebot": game_state.bids.get(p, 0),
             "Stiche": game_state.tricks_won.get(p, 0),
             "Rundenpunkte": self.game_manager.current_round_scores.get(p, 0),
             "Gesamtpunkte": self.game_manager.total_scores.get(p, 0)
@@ -167,10 +175,19 @@ class WizardGUI:
             # +++ ENDE NEUE CHECKBOX +++
 
         with col2:
+            st.subheader("Spielernamen")
+            for i in range(num_players):
+                default_name = st.session_state.player_names.get(i, f"Spieler {i+1}")
+                st.session_state.player_names[i] = st.text_input(
+                    f"Name Spieler {i+1}",
+                    value=default_name,
+                    key=f"player_name_{i}"
+                )
+
             st.subheader("Spielertypen")
-            player_types = {i: st.selectbox(f"Spieler {i+1}", ["human", "computer"], key=f"player_type_{i}") for i in range(num_players)}
+            player_types = {i: st.selectbox(f"Typ {st.session_state.player_names[i]}", ["human", "computer"], key=f"player_type_{i}") for i in range(num_players)}
             human_players = [i for i, t in player_types.items() if t == "human"]
-            human_player_id = st.selectbox("Hauptspieler (Sie)", human_players, format_func=lambda x: f"Spieler {x+1}") if human_players else 0
+            human_player_id = st.selectbox("Hauptspieler (Sie)", human_players, format_func=lambda x: self.get_player_name(x)) if human_players else 0
 
         if st.button("Spiel erstellen", disabled=not is_valid_round):
             self.save_state_for_undo()
@@ -203,7 +220,7 @@ class WizardGUI:
             )
             st.divider()
 
-            st.subheader(f"Geben Sie die {num_cards} Karten von Spieler {player_id + 1} ein")
+            st.subheader(f"Geben Sie die {num_cards} Karten von {self.get_player_name(player_id)} ein")
             hand_input = []
             cols = st.columns(4)
             for i in range(num_cards):
@@ -253,7 +270,7 @@ class WizardGUI:
         st.header(f"📜 Runde {game_state.round_number} - Gebote abgeben")
 
         if self.game_manager.deal_digitally:
-            st.subheader(f"Ihre Karten (Spieler {self.game_manager.human_player_id + 1})")
+            st.subheader(f"Ihre Karten ({self.get_player_name(self.game_manager.human_player_id)})")
             main_col, trump_col = st.columns([4, 1])
             with trump_col:
                 st.metric("Trumpf", game_state.trump_suit.value if game_state.trump_suit else "Keine")
@@ -282,13 +299,13 @@ class WizardGUI:
         for i in game_state.players:
             with bid_cols[i]:
                 st.number_input(
-                    f"Spieler {i+1} ({'👤' if self.game_manager.player_types.get(i) == 'human' else '🤖'})",
+                    f"{self.get_player_name(i)} ({'👤' if self.game_manager.player_types.get(i) == 'human' else '🤖'})",
                     min_value=-1, max_value=game_state.round_number, 
                     value=st.session_state.bids_in_progress[i], 
                     key=f"bid_input_{i}"
                 )
                 if st.button("Empfehlung", key=f"rec_btn_{i}"):
-                    with st.spinner(f"Simuliere Gebote für Spieler {i+1}..."):
+                    with st.spinner(f"Simuliere Gebote für {self.get_player_name(i)}..."):
                         st.session_state.bid_recommendations = self.bid_recommender.recommend_bid(game_state, i)
                         st.session_state.bid_rec_player = i
         
@@ -302,7 +319,7 @@ class WizardGUI:
 
         if 'bid_recommendations' in st.session_state:
             player, rec_df = st.session_state.bid_rec_player, st.session_state.bid_recommendations
-            with st.expander(f"Gebot-Empfehlung für Spieler {player+1}", expanded=True):
+            with st.expander(f"Gebot-Empfehlung für {self.get_player_name(player)}", expanded=True):
                 if not rec_df.empty:
                     st.dataframe(
                         rec_df.style.format({'Mittelwert': '{:.2f}', 'Varianz': '{:.2f}', '95% Konfidenz Oben': '{:.2f}'}),
@@ -342,7 +359,7 @@ class WizardGUI:
         with st.spinner("Computer berechnen ihre Gebote..."):
             for player_id in computer_players:
                 if player_id not in game_state.hands or not game_state.hands[player_id]:
-                    st.error(f"Fehler: Hand für Computerspieler {player_id + 1} nicht gefunden.")
+                    st.error(f"Fehler: Hand für Computerspieler {self.get_player_name(player_id)} nicht gefunden.")
                     continue
                 recommendations = self.bid_recommender.recommend_bid(game_state, player_id)
                 if not recommendations.empty:
@@ -355,10 +372,10 @@ class WizardGUI:
         current_player = game_state.current_player
         player_type = self.game_manager.player_types.get(current_player, "human")
         
-        st.subheader(f"🎯 Spieler {current_player + 1} ist am Zug")
+        st.subheader(f"🎯 {self.get_player_name(current_player)} ist am Zug")
 
         if player_type == "computer":
-            if st.button(f"🤖 Computer Zug für Spieler {current_player + 1}", type="primary"):
+            if st.button(f"🤖 Computer Zug für {self.get_player_name(current_player)}", type="primary"):
                 self.save_state_for_undo()
                 self.play_computer_move(current_player)
         elif current_player == self.game_manager.human_player_id:
@@ -369,7 +386,7 @@ class WizardGUI:
     def main_player_card_input(self, player_id: int):
         game_state = self.game_manager.game_state
         hand = sorted(game_state.hands.get(player_id, []))
-        st.subheader(f"🃏 Deine Karten (Spieler {player_id+1})")
+        st.subheader(f"🃏 Deine Karten ({self.get_player_name(player_id)})")
         
         # Die Logik für das Bestätigen des Spielens bleibt erhalten
         confirm_logic_active = self.game_manager.confirm_play and 'selected_card_to_play' in st.session_state
@@ -410,7 +427,7 @@ class WizardGUI:
     
     # NEU: Überarbeitete Methode für die Eingabe anderer menschlicher Spieler
     def human_card_input(self, player_id: int):
-        st.info(f"Bitte gib die gespielte Karte von Spieler {player_id + 1} ein.")
+        st.info(f"Bitte gib die gespielte Karte von {self.get_player_name(player_id)} ein.")
         game_state = self.game_manager.game_state
 
         with st.form(key=f"human_input_form_{player_id}"):
@@ -461,7 +478,7 @@ class WizardGUI:
             if recommendations:
                 best_card = max(recommendations.items(), key=lambda x: x[1])[0]
                 self.game_manager.play_card(player_id, best_card)
-                st.success(f"🤖 Computer (Spieler {player_id+1}) spielt: {best_card}")
+                st.success(f"🤖 Computer ({self.get_player_name(player_id)}) spielt: {best_card}")
                 st.rerun()
             else:
                 st.error(f"Computer konnte keine gültige Karte finden.")
@@ -493,6 +510,8 @@ class WizardGUI:
             st.header("🎮 Spielkontrolle")
             if st.button("🔄 Neues Spiel starten"):
                 for key in list(st.session_state.keys()):
+                    if key == 'player_names':
+                        continue
                     del st.session_state[key]
                 st.rerun()
 
