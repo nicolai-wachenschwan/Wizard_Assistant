@@ -100,6 +100,7 @@ class GameState:
     - played_cards: Set aller Karten, die in dieser Runde bereits gespielt wurden
     - current_player: welcher Spieler ist gerade am Zug
     - trick_leader: wer hat den letzten Stich gewonnen (führt nächsten an)
+    - dealer: welcher Spieler teilt die Karten dieser Runde aus
     """
     round_number: int
     current_trick: int
@@ -112,6 +113,7 @@ class GameState:
     played_cards: Set[Card]
     current_player: int
     trick_leader: int
+    dealer: int
     last_wizard_wins: bool = False
     
     def copy(self):

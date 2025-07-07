@@ -247,7 +247,8 @@ class WizardGameSimulator:
             current_trick_cards=current_trick_cards_on_table,
             played_cards=played_cards_globally,
             current_player=current_player_for_state,
-            trick_leader=trick_leader
+            trick_leader=trick_leader,
+            dealer=(round_number - 1) % self.num_players
         )
 
 

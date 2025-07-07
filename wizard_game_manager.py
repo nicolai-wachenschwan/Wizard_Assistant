@@ -22,7 +22,7 @@ class WizardGameManager:
         self.confirm_play: bool = False
         self.last_wizard_wins: bool = False
 
-    def start_new_game(self, num_players: int, player_types: Dict[int, str], human_player_id: int, start_round: int = 1, deal_digitally: bool = True, confirm_play: bool = False,last_wizard_wins: bool = False):
+    def start_new_game(self, num_players: int, player_types: Dict[int, str], human_player_id: int, start_round: int = 1, deal_digitally: bool = True, confirm_play: bool = False,last_wizard_wins: bool = False, dealer: Optional[int] = None):
         """Initialisiert ein komplett neues Spiel."""
         self.player_types = player_types
         self.human_player_id = human_player_id
@@ -30,7 +30,7 @@ class WizardGameManager:
         self.confirm_play = confirm_play
         self.last_wizard_wins = last_wizard_wins
         self.total_scores = {p: 0 for p in range(num_players)}
-        self.start_new_round(round_number=start_round, num_players=num_players)
+        self.start_new_round(round_number=start_round, num_players=num_players, dealer=dealer)
 
     def is_human_hand_set(self):
         """Check if the human player's hand has been set (for manual card input)."""
@@ -52,11 +52,12 @@ class WizardGameManager:
             self.game_state.hands[player_id] = hand_cards
 
 
-    def start_new_round(self, round_number: int, num_players: int):
+    def start_new_round(self, round_number: int, num_players: int, dealer: Optional[int] = None):
         """Bereitet den Spielzustand für eine neue Runde vor."""
         self.last_trick = None
         players = list(range(num_players))
-        dealer = (round_number - 1) % num_players
+        if dealer is None:
+            dealer = (round_number - 1) % num_players
         start_player = (dealer + 1) % num_players
 
         deck = WizardDeck()
@@ -78,6 +79,7 @@ class WizardGameManager:
             players=players, hands=hands, bids={}, tricks_won={p: 0 for p in players},
             current_trick_cards=[], played_cards=set(),
             current_player=start_player, trick_leader=start_player,
+            dealer=dealer,
             last_wizard_wins=self.last_wizard_wins  # NEUES ARGUMENT
         )
         self.current_round_scores = {p: 0 for p in players}
@@ -183,4 +185,5 @@ class WizardGameManager:
             next_round_number = self.game_state.round_number + 1
             max_rounds = 60 // num_players
             if next_round_number <= max_rounds:
-                self.start_new_round(next_round_number, num_players)
+                new_dealer = (self.game_state.dealer + 1) % num_players
+                self.start_new_round(next_round_number, num_players, dealer=new_dealer)
