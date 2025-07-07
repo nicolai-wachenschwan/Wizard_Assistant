@@ -188,6 +188,12 @@ class WizardGUI:
             player_types = {i: st.selectbox(f"Typ {st.session_state.player_names[i]}", ["human", "computer"], key=f"player_type_{i}") for i in range(num_players)}
             human_players = [i for i, t in player_types.items() if t == "human"]
             human_player_id = st.selectbox("Hauptspieler (Sie)", human_players, format_func=lambda x: self.get_player_name(x)) if human_players else 0
+            dealer_id = st.selectbox(
+                "Kartengeber (Runde 1)",
+                list(range(num_players)),
+                format_func=lambda x: self.get_player_name(x),
+                key="dealer_select"
+            )
 
         if st.button("Spiel erstellen", disabled=not is_valid_round):
             self.save_state_for_undo()
@@ -199,7 +205,8 @@ class WizardGUI:
                 round_number, 
                 deal_digitally, 
                 confirm_play,
-                last_wizard_wins # Neuer Parameter wird übergeben
+                last_wizard_wins,
+                dealer_id
             )
             # +++ ENDE AKTUALISIERUNG +++
             st.rerun()            

@@ -721,7 +721,7 @@ class WizardGameSimulator:
         
         # Initialisiere Stiche
         tricks_won = {player: 0 for player in players}
-        
+
         return GameState(
             round_number=round_number,
             current_trick=current_trick,
@@ -733,7 +733,8 @@ class WizardGameSimulator:
             current_trick_cards=[],
             played_cards=set(),
             current_player=players[0],
-            trick_leader=players[0]
+            trick_leader=players[0],
+            dealer=(round_number - 1) % len(players)
         )
     
     def simulate_complete_game(self) -> Dict[int, int]:
@@ -1001,7 +1002,8 @@ def create_example_game_state() -> GameState:
         current_trick_cards=[],
         played_cards=played_cards,
         current_player=0,
-        trick_leader=0
+        trick_leader=0,
+        dealer=0
     )
 
 def main():
