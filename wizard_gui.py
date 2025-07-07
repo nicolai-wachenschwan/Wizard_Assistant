@@ -210,58 +210,65 @@ class WizardGUI:
         num_cards = self.game_manager.game_state.round_number
         player_id = self.game_manager.human_player_id
         
-        with st.form(key="manual_hand_form"):
-            st.subheader("Wählen Sie die Trumpffarbe")
-            possible_trumps = [s.value for s in Suit if s not in [Suit.WIZARD, Suit.JESTER]]
-            trump_suit_selection = st.selectbox(
-                "Trumpffarbe für diese Runde",
-                options=["Keine"] + possible_trumps, 
-                key="trump_suit_manual"
-            )
-            st.divider()
+        st.subheader("Wählen Sie die Trumpffarbe")
+        possible_trumps = [s.value for s in Suit if s not in [Suit.WIZARD, Suit.JESTER]]
+        st.selectbox(
+            "Trumpffarbe für diese Runde",
+            options=["Keine"] + possible_trumps,
+            key="trump_suit_manual"
+        )
 
-            st.subheader(f"Geben Sie die {num_cards} Karten von {self.get_player_name(player_id)} ein")
-            hand_input = []
-            cols = st.columns(4)
-            for i in range(num_cards):
-                with cols[i % 4]:
-                    st.write(f"Karte {i+1}")
-                    suit = st.selectbox("Farbe", [s.value for s in Suit], key=f"suit_{i}")
-                    
-                    is_special_card = suit in [Suit.WIZARD.value, Suit.JESTER.value]
-                    # Hier verwenden wir jetzt auch ein Selectbox für die Konsistenz
-                    value_options = list(range(1, 14))
-                    value = st.selectbox(
-                        "Wert", 
-                        options=value_options,
-                        key=f"value_{i}",
-                        disabled=is_special_card,
-                        label_visibility="collapsed" if is_special_card else "visible"
-                    )
-                    hand_input.append({"suit": suit, "value": value})
-            
-            submitted = st.form_submit_button("Karten & Trumpf bestätigen und zur Gebotsphase wechseln")
-            if submitted:
-                try:
-                    hand_cards = []
-                    for card_data in hand_input:
-                        if card_data["suit"] == Suit.WIZARD.value:
-                            hand_cards.append(Card(Suit.WIZARD, 14))
-                        elif card_data["suit"] == Suit.JESTER.value:
-                            hand_cards.append(Card(Suit.JESTER, 0))
-                        else:
-                            hand_cards.append(Card(Suit(card_data["suit"]), card_data["value"]))
-                    
-                    # Validierung auf doppelte Karten, funktioniert nicht richtig, weil es 4 identische Wizards und Jester gibt
-                    if False:#len(set(hand_cards)) != len(hand_cards):
-                        st.error("Fehler: Sie haben eine oder mehrere Karten doppelt eingegeben. Bitte korrigieren Sie Ihre Eingabe.")
-                    else:
-                        self.save_state_for_undo() 
-                        self.game_manager.set_player_hand(player_id, hand_cards)
-                        selected_trump = st.session_state.trump_suit_manual
-                        self.game_manager.set_trump_suit_manually(selected_trump if selected_trump != "Keine" else None)
+        st.divider()
+
+        entered_cards = self.game_manager.game_state.hands.get(player_id, [])
+        st.subheader(f"Karten eingeben ({len(entered_cards)}/{num_cards})")
+
+        if entered_cards:
+            cols = st.columns(min(5, len(entered_cards)))
+            for i, c in enumerate(entered_cards):
+                with cols[i % 5]:
+                    st.image(self.create_card_image(c, width=60, height=90), caption=str(c))
+
+        if len(entered_cards) < num_cards:
+            st.subheader(f"Karte {len(entered_cards)+1} auswählen")
+
+            if 'manual_suit_choice' not in st.session_state:
+                suit_rows = [[Suit.RED, Suit.BLUE, Suit.GREEN], [Suit.YELLOW, Suit.WIZARD, Suit.JESTER]]
+                for row in suit_rows:
+                    cols = st.columns(len(row))
+                    for idx, suit in enumerate(row):
+                        if cols[idx].button(suit.value, key=f"suit_btn_{len(entered_cards)}_{suit.value}"):
+                            st.session_state.manual_suit_choice = suit.value
+                            st.rerun()
+            else:
+                suit_val = st.session_state.manual_suit_choice
+                if suit_val in [Suit.WIZARD.value, Suit.JESTER.value]:
+                    card = Card(Suit.WIZARD, 14) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 0)
+                    if st.button("Karte übernehmen", key=f"confirm_special_{len(entered_cards)}"):
+                        self.save_state_for_undo()
+                        self.game_manager.game_state.hands[player_id].append(card)
+                        del st.session_state.manual_suit_choice
                         st.rerun()
-
+                else:
+                    st.write(f"Farbe **{suit_val}** gewählt - Wert auswählen:")
+                    value_rows = [range(1,6), range(6,11), range(11,14)]
+                    for row in value_rows:
+                        cols = st.columns(len(row))
+                        for idx, val in enumerate(row):
+                            if cols[idx].button(str(val), key=f"val_btn_{len(entered_cards)}_{val}"):
+                                self.save_state_for_undo()
+                                self.game_manager.game_state.hands[player_id].append(Card(Suit(suit_val), val))
+                                del st.session_state.manual_suit_choice
+                                st.rerun()
+        else:
+            if st.button("Karten & Trumpf bestätigen und zur Gebotsphase wechseln", type="primary"):
+                try:
+                    self.save_state_for_undo()
+                    hand_cards = self.game_manager.game_state.hands.get(player_id, [])
+                    self.game_manager.set_player_hand(player_id, hand_cards)
+                    selected_trump = st.session_state.trump_suit_manual
+                    self.game_manager.set_trump_suit_manually(selected_trump if selected_trump != "Keine" else None)
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Fehler bei der Karteneingabe: {e}")
 
@@ -430,44 +437,36 @@ class WizardGUI:
         st.info(f"Bitte gib die gespielte Karte von {self.get_player_name(player_id)} ein.")
         game_state = self.game_manager.game_state
 
-        with st.form(key=f"human_input_form_{player_id}"):
-            cols = st.columns(2)
-            with cols[0]:
-                suit_str = st.selectbox("Farbe", [s.value for s in Suit], key=f"suit_input_{player_id}")
-            
-            is_special = suit_str in [Suit.WIZARD.value, Suit.JESTER.value]
-            
-            with cols[1]:
-                value = st.selectbox(
-                    "Wert", 
-                    options=list(range(1, 14)), 
-                    key=f"value_input_{player_id}",
-                    disabled=is_special
-                )
+        suit_key = f"suit_choice_{player_id}"
 
-            submitted = st.form_submit_button("Karte bestätigen")
-            if submitted:
-                # Karte aus Eingabe erstellen
-                card = None
-                if suit_str == Suit.WIZARD.value:
-                    card = Card(Suit.WIZARD, 14)
-                elif suit_str == Suit.JESTER.value:
-                    card = Card(Suit.JESTER, 0)
-                else:
-                    card = Card(Suit(suit_str), value)
-                
-                # Validierung: Wurde die Karte bereits gespielt oder ist sie special und die Zahl der Special-Karten <4?
-                wizard_count_valid= len([card for card in game_state.played_cards if card.suit == Suit.WIZARD])<=3
-                jester_count_valid= len([card for card in game_state.played_cards if card.suit == Suit.JESTER])<=3
-                #Validierung funktioniert noch nicht richtig, daher auskommentiert
-                if False:#(card in game_state.played_cards and not is_special) or (card.suit == Suit.JESTER and not jester_count_valid) or (card.suit == Suit.WIZARD and not wizard_count_valid):
-                    st.error(f"Fehler: Die Karte '{card}' wurde bereits gespielt und kann nicht erneut eingegeben werden.")
-                else:
-                    # Da wir die Hand des anderen Spielers nicht kennen, können wir is_valid_play nicht sinnvoll nutzen.
-                    # Die Hauptvalidierung ist, dass die Karte nicht schon im Spiel ist.
+        if suit_key not in st.session_state:
+            suit_rows = [[Suit.RED, Suit.BLUE, Suit.GREEN], [Suit.YELLOW, Suit.WIZARD, Suit.JESTER]]
+            for row in suit_rows:
+                cols = st.columns(len(row))
+                for idx, suit in enumerate(row):
+                    if cols[idx].button(suit.value, key=f"h_suit_{player_id}_{suit.value}"):
+                        st.session_state[suit_key] = suit.value
+                        st.rerun()
+        else:
+            suit_val = st.session_state[suit_key]
+            if suit_val in [Suit.WIZARD.value, Suit.JESTER.value]:
+                card = Card(Suit.WIZARD, 14) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 0)
+                if st.button("Karte spielen", key=f"play_special_{player_id}"):
                     self.save_state_for_undo()
                     self.game_manager.play_card(player_id, card)
+                    del st.session_state[suit_key]
                     st.rerun()
+            else:
+                st.write(f"Farbe **{suit_val}** gewählt - Wert auswählen:")
+                value_rows = [range(1,6), range(6,11), range(11,14)]
+                for row in value_rows:
+                    cols = st.columns(len(row))
+                    for idx, val in enumerate(row):
+                        if cols[idx].button(str(val), key=f"h_val_{player_id}_{val}"):
+                            self.save_state_for_undo()
+                            self.game_manager.play_card(player_id, Card(Suit(suit_val), val))
+                            del st.session_state[suit_key]
+                            st.rerun()
 
 
     def play_computer_move(self, player_id: int):
