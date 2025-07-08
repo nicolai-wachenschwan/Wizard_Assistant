@@ -21,6 +21,7 @@ class WizardGameManager:
         self.deal_digitally: bool = True
         self.confirm_play: bool = False
         self.last_wizard_wins: bool = False
+        self.wizard_trump_chooser: Optional[int] = None
 
     def start_new_game(self, num_players: int, player_types: Dict[int, str], human_player_id: int, start_round: int = 1, deal_digitally: bool = True, confirm_play: bool = False,last_wizard_wins: bool = False, dealer: Optional[int] = None):
         """Initialisiert ein komplett neues Spiel."""
@@ -62,28 +63,34 @@ class WizardGameManager:
 
         deck = WizardDeck()
         deck.shuffle()
-        
+
         if self.deal_digitally:
             hands = {p: sorted(deck.deal_cards(round_number)) for p in players}
-            trump_suit = None
+            trump_card = None
             if sum(len(h) for h in hands.values()) < 60:
                 trump_card = deck.deal_cards(1)[0]
-                if trump_card.suit not in [Suit.WIZARD, Suit.JESTER]:
-                    trump_suit = trump_card.suit
         else:
             hands = {p: [] for p in players}
-            trump_suit = None
+            trump_card = None
+
+        played_cards = set()
+        if trump_card:
+            played_cards.add(trump_card)
 
         self.game_state = GameState(
-            round_number=round_number, current_trick=0, trump_suit=trump_suit,
+            round_number=round_number, current_trick=0, trump_suit=None,
+            trump_card=trump_card,
             players=players, hands=hands, bids={}, tricks_won={p: 0 for p in players},
-            current_trick_cards=[], played_cards=set(),
+            current_trick_cards=[], played_cards=played_cards,
             current_player=start_player, trick_leader=start_player,
             dealer=dealer,
             last_wizard_wins=self.last_wizard_wins  # NEUES ARGUMENT
         )
         self.current_round_scores = {p: 0 for p in players}
         self.game_phase = "bidding"
+
+        if trump_card:
+            self.set_trump_from_card(trump_card, chooser=start_player)
 
     # NEU: Methode zum manuellen Setzen der Trumpffarbe
     def set_trump_suit_manually(self, suit_value: Optional[str]):
@@ -100,16 +107,45 @@ class WizardGameManager:
             self.game_state.bids = bids
             self.game_phase = "play_game"
             
-    def set_trump_from_card(self, trump_card: Card):
+    def set_trump_from_card(self, trump_card: Optional[Card], chooser: Optional[int] = None):
         """Set the trump suit based on the trump card."""
-        if trump_card.suit == Suit.WIZARD:
-            # Player who dealt chooses trump, but for simplicity we can set it to None
-            # or implement a selection mechanism
+        if not self.game_state:
+            return
+
+        self.game_state.trump_card = trump_card
+        self.wizard_trump_chooser = None
+
+        if not trump_card:
             self.game_state.trump_suit = None
-        elif trump_card.suit == Suit.JESTER:
+            return
+
+        if trump_card.suit == Suit.JESTER:
             self.game_state.trump_suit = None
+        elif trump_card.suit == Suit.WIZARD:
+            if chooser is None:
+                chooser = (self.game_state.dealer + 1) % len(self.game_state.players)
+            if self.player_types.get(chooser) == "computer":
+                counts = {s: 0 for s in [Suit.RED, Suit.BLUE, Suit.GREEN, Suit.YELLOW]}
+                for c in self.game_state.hands.get(chooser, []):
+                    if c.suit in counts:
+                        counts[c.suit] += 1
+                preferred = max(counts, key=counts.get)
+                self.game_state.trump_suit = preferred
+            else:
+                self.game_state.trump_suit = None
+                self.wizard_trump_chooser = chooser
         else:
             self.game_state.trump_suit = trump_card.suit
+
+    def choose_trump_suit(self, suit_value: Optional[str]):
+        """Finalize trump suit selection when a Wizard was revealed."""
+        if not self.game_state or self.wizard_trump_chooser is None:
+            return
+        if suit_value is None or suit_value == "Keine":
+            self.game_state.trump_suit = None
+        else:
+            self.game_state.trump_suit = Suit(suit_value)
+        self.wizard_trump_chooser = None
             
     def play_card(self, player_id: int, card: Card):
         """

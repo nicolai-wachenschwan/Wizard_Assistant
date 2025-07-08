@@ -15,11 +15,11 @@ class Suit(Enum):
 @dataclass
 class Card:
     suit: Suit
-    value: int  # 1-13 für normale Karten, 0 für Wizard/Jester
+    value: int  # 1-13 für normale Karten, frei wählbar für Wizard/Jester
     
     def __post_init__(self):
-        if self.suit in [Suit.WIZARD, Suit.JESTER]:
-            self.value = 0
+        """Keep the provided value. Previously Wizard/Jester were forced to 0."""
+        pass
     
     def __str__(self):
         if self.suit == Suit.WIZARD:
@@ -114,6 +114,7 @@ class GameState:
     current_player: int
     trick_leader: int
     dealer: int
+    trump_card: Optional[Card] = None
     last_wizard_wins: bool = False
     
     def copy(self):

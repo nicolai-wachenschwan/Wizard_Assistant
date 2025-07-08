@@ -21,11 +21,11 @@ class Suit(Enum):
 @dataclass
 class Card:
     suit: Suit
-    value: int  # 1-13 for normal cards, 0 for special cards
+    value: int  # 1-13 for normal cards, arbitrary for special cards
     
     def __post_init__(self):
-        if self.suit in [Suit.WIZARD, Suit.JESTER]:
-            self.value = 0
+        """Do not override value for Wizard/Jester so custom cards work."""
+        pass
     
     def __str__(self):
         if self.suit == Suit.WIZARD:
@@ -726,6 +726,7 @@ class WizardGameSimulator:
             round_number=round_number,
             current_trick=current_trick,
             trump_suit=trump_suit,
+            trump_card=None,
             players=players,
             hands=hands,
             bids=bids,
@@ -995,6 +996,7 @@ def create_example_game_state() -> GameState:
         round_number=5,
         current_trick=3,
         trump_suit=Suit.RED,
+        trump_card=None,
         players=players,
         hands=hands,
         bids=bids,
