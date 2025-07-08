@@ -217,13 +217,48 @@ class WizardGUI:
         num_cards = self.game_manager.game_state.round_number
         player_id = self.game_manager.human_player_id
         
-        st.subheader("Wählen Sie die Trumpffarbe")
-        possible_trumps = [s.value for s in Suit if s not in [Suit.WIZARD, Suit.JESTER]]
-        st.selectbox(
-            "Trumpffarbe für diese Runde",
-            options=["Keine"] + possible_trumps,
-            key="trump_suit_manual"
-        )
+        st.subheader("Trumpfkarte wählen")
+        trump_card = st.session_state.get("manual_trump_card")
+        if trump_card is not None:
+            st.image(self.create_card_image(trump_card, width=60, height=90), caption=str(trump_card))
+        else:
+            st.write("Keine Trumpfkarte gewählt")
+
+        if "trump_suit_choice" not in st.session_state:
+            suit_rows = [[Suit.RED, Suit.BLUE, Suit.GREEN], [Suit.YELLOW, Suit.WIZARD, Suit.JESTER]]
+            for row in suit_rows:
+                cols = st.columns(len(row))
+                for idx, suit in enumerate(row):
+                    if cols[idx].button(suit.value, key=f"trump_suit_{suit.value}"):
+                        st.session_state.trump_suit_choice = suit.value
+                        st.rerun()
+            if st.button("Keine", key="trump_none"):
+                st.session_state.manual_trump_card = None
+                self.game_manager.set_trump_from_card(None)
+                st.rerun()
+        else:
+            suit_val = st.session_state.trump_suit_choice
+            if suit_val in [Suit.WIZARD.value, Suit.JESTER.value]:
+                card = Card(Suit.WIZARD, 0) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 0)
+                if st.button("Trumpfkarte übernehmen", key=f"confirm_trump_{suit_val}"):
+                    self.save_state_for_undo()
+                    self.game_manager.set_trump_from_card(card)
+                    st.session_state.manual_trump_card = card
+                    del st.session_state.trump_suit_choice
+                    st.rerun()
+            else:
+                st.write(f"Farbe **{suit_val}** gewählt - Wert auswählen:")
+                value_rows = [range(1,6), range(6,11), range(11,14)]
+                for row in value_rows:
+                    cols = st.columns(len(row))
+                    for idx, val in enumerate(row):
+                        if cols[idx].button(str(val), key=f"trump_val_{val}"):
+                            self.save_state_for_undo()
+                            card = Card(Suit(suit_val), val)
+                            self.game_manager.set_trump_from_card(card)
+                            st.session_state.manual_trump_card = card
+                            del st.session_state.trump_suit_choice
+                            st.rerun()
 
         st.divider()
 
@@ -273,8 +308,8 @@ class WizardGUI:
                     self.save_state_for_undo()
                     hand_cards = self.game_manager.game_state.hands.get(player_id, [])
                     self.game_manager.set_player_hand(player_id, hand_cards)
-                    selected_trump = st.session_state.trump_suit_manual
-                    self.game_manager.set_trump_suit_manually(selected_trump if selected_trump != "Keine" else None)
+                    card = st.session_state.get("manual_trump_card")
+                    self.game_manager.set_trump_from_card(card)
                     st.rerun()
                 except Exception as e:
                     st.error(f"Fehler bei der Karteneingabe: {e}")
@@ -282,6 +317,18 @@ class WizardGUI:
     def bidding_stage(self):
         game_state = self.game_manager.game_state
         st.header(f"📜 Runde {game_state.round_number} - Gebote abgeben")
+
+        if self.game_manager.wizard_trump_chooser == self.game_manager.human_player_id:
+            st.warning("Trumpfkarte war ein Zauberer. Bitte Trumpffarbe wählen:")
+            choice = st.selectbox(
+                "Trumpffarbe",
+                [s.value for s in Suit if s not in [Suit.WIZARD, Suit.JESTER]],
+                key="wizard_trump_select",
+            )
+            if st.button("Trumpf setzen", key="wizard_trump_confirm"):
+                self.save_state_for_undo()
+                self.game_manager.choose_trump_suit(choice)
+                st.rerun()
 
         if self.game_manager.deal_digitally:
             st.subheader(f"Ihre Karten ({self.get_player_name(self.game_manager.human_player_id)})")

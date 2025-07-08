@@ -240,6 +240,7 @@ class WizardGameSimulator:
             round_number=round_number,
             current_trick=current_trick_idx,
             trump_suit=trump_suit,
+            trump_card=None,
             players=players,
             hands=hands,
             bids=bids,
