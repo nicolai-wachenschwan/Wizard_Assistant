@@ -114,6 +114,7 @@ class GameState:
     current_player: int
     trick_leader: int
     dealer: int
+    trump_card: Optional[Card] = None
     last_wizard_wins: bool = False
     
     def copy(self):
