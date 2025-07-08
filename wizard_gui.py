@@ -239,7 +239,7 @@ class WizardGUI:
         else:
             suit_val = st.session_state.trump_suit_choice
             if suit_val in [Suit.WIZARD.value, Suit.JESTER.value]:
-                card = Card(Suit.WIZARD, 1) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 1)
+                card = Card(Suit.WIZARD, 0) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 0)
                 if st.button("Trumpfkarte übernehmen", key=f"confirm_trump_{suit_val}"):
                     self.save_state_for_undo()
                     self.game_manager.set_trump_from_card(card)
