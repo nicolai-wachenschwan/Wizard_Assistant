@@ -21,11 +21,11 @@ class Suit(Enum):
 @dataclass
 class Card:
     suit: Suit
-    value: int  # 1-13 for normal cards, 0 for special cards
+    value: int  # 1-13 for normal cards, arbitrary for special cards
     
     def __post_init__(self):
-        if self.suit in [Suit.WIZARD, Suit.JESTER]:
-            self.value = 0
+        """Do not override value for Wizard/Jester so custom cards work."""
+        pass
     
     def __str__(self):
         if self.suit == Suit.WIZARD:

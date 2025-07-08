@@ -285,7 +285,7 @@ class WizardGUI:
             else:
                 suit_val = st.session_state.manual_suit_choice
                 if suit_val in [Suit.WIZARD.value, Suit.JESTER.value]:
-                    card = Card(Suit.WIZARD, 14) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 0)
+                    card = Card(Suit.WIZARD, 1) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 1)
                     if st.button("Karte übernehmen", key=f"confirm_special_{len(entered_cards)}"):
                         self.save_state_for_undo()
                         self.game_manager.game_state.hands[player_id].append(card)
@@ -504,7 +504,7 @@ class WizardGUI:
         else:
             suit_val = st.session_state[suit_key]
             if suit_val in [Suit.WIZARD.value, Suit.JESTER.value]:
-                card = Card(Suit.WIZARD, 14) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 0)
+                card = Card(Suit.WIZARD, 1) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 1)
                 if st.button("Karte spielen", key=f"play_special_{player_id}"):
                     self.save_state_for_undo()
                     self.game_manager.play_card(player_id, card)
