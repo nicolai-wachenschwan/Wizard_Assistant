@@ -558,15 +558,50 @@ class WizardGUI:
 
     # --- STEUERUNG & HAUPTFUNKTION ---
 
+    def _reset_for_new_game(self):
+        """Clears gameplay related session state but keeps setup options."""
+        keep_keys = {
+            "player_names",
+            "num_players_setup",
+            "round_number_setup",
+            "deal_digitally",
+            "confirm_play",
+            "last_wizard_wins_rule",
+            "dealer_select",
+            "ai_card_sims",
+            "ai_card_dists",
+            "ai_bid_sims",
+            "sb_card_sims",
+            "sb_card_dists",
+            "sb_bid_sims",
+        }
+        keep_prefixes = ("player_name_", "player_type_")
+
+        for key in list(st.session_state.keys()):
+            if key in keep_keys or any(key.startswith(p) for p in keep_prefixes):
+                continue
+            del st.session_state[key]
+
+        st.session_state.show_new_game_confirm = False
+        st.rerun()
+
     def sidebar_controls(self):
         with st.sidebar:
             st.header("🎮 Spielkontrolle")
+
+            if 'show_new_game_confirm' not in st.session_state:
+                st.session_state.show_new_game_confirm = False
+
             if st.button("🔄 Neues Spiel starten"):
-                for key in list(st.session_state.keys()):
-                    if key == 'player_names':
-                        continue
-                    del st.session_state[key]
-                st.rerun()
+                st.session_state.show_new_game_confirm = True
+
+            if st.session_state.show_new_game_confirm:
+                st.warning("Sind Sie sicher, dass Sie ein neues Spiel starten wollen? Der aktuelle Fortschritt geht verloren.")
+                c1, c2 = st.columns(2)
+                if c1.button("Ja", key="confirm_new_game"):
+                    self._reset_for_new_game()
+                if c2.button("Nein", key="cancel_new_game"):
+                    st.session_state.show_new_game_confirm = False
 
             if self.game_manager.game_phase != "setup":
                  if st.button("↩️ Letzte Aktion rückgängig machen"):
