@@ -34,18 +34,34 @@ class WizardGameManager:
         self.start_new_round(round_number=start_round, num_players=num_players, dealer=dealer)
 
     def is_human_hand_set(self):
-        """Check if the human player's hand has been set (for manual card input)."""
+        """
+        Prüft, ob die Hand des menschlichen Spielers gesetzt ist (für die manuelle Eingabe).
+        In der letzten Runde wird keine Trumpfkarte benötigt.
+        """
         if not self.game_state:
             return True
-        
-        # Wenn Karten digital verteilt werden, ist die Hand automatisch gesetzt
+
         if self.deal_digitally:
             return True
-        
-        # Wenn Karten analog verteilt werden, prüfe ob die Hand manuell eingegeben wurde
+
         human_hand = self.game_state.hands.get(self.human_player_id, [])
         expected_cards = self.game_state.round_number
-        return len(human_hand) == expected_cards
+        
+        # Die Hand muss immer die korrekte Anzahl an Karten haben.
+        if len(human_hand) != expected_cards:
+            return False
+
+        # Prüfen, ob es die letzte mögliche Runde ist (z.B. Runde 15 bei 4 Spielern)
+        num_players = len(self.game_state.players)
+        is_last_round = self.game_state.round_number == 60 // num_players
+        
+        # Wenn es die letzte Runde ist, ist keine Trumpfkarte nötig.
+        # Ansonsten muss eine Trumpfkarte gesetzt sein.
+        if is_last_round:
+            return True
+        else:
+            return self.game_state.trump_card is not None
+
 
     def set_player_hand(self, player_id: int, hand_cards: List[Card]):
         """Set the hand cards for a specific player (used for manual input)."""
@@ -64,14 +80,17 @@ class WizardGameManager:
         deck = WizardDeck()
         deck.shuffle()
 
-        if self.deal_digitally:
-            hands = {p: sorted(deck.deal_cards(round_number)) for p in players}
-            trump_card = None
-            if sum(len(h) for h in hands.values()) < 60:
+        # Trumpfkarte nur aufdecken, wenn nicht alle Karten ausgeteilt werden
+        trump_card = None
+        if round_number * num_players < 60:
+             if self.deal_digitally:
+                hands = {p: sorted(deck.deal_cards(round_number)) for p in players}
                 trump_card = deck.deal_cards(1)[0]
-        else:
-            hands = {p: [] for p in players}
-            trump_card = None
+             else:
+                hands = {p: [] for p in players}
+        else: # Letzte Runde
+            hands = {p: sorted(deck.deal_cards(round_number)) for p in players} if self.deal_digitally else {p: [] for p in players}
+
 
         played_cards = set()
         if trump_card:
@@ -84,22 +103,14 @@ class WizardGameManager:
             current_trick_cards=[], played_cards=played_cards,
             current_player=start_player, trick_leader=start_player,
             dealer=dealer,
-            last_wizard_wins=self.last_wizard_wins  # NEUES ARGUMENT
+            last_wizard_wins=self.last_wizard_wins
         )
         self.current_round_scores = {p: 0 for p in players}
         self.game_phase = "bidding"
-
+        
+        # Setze den Trumpf basierend auf der Karte, NACHDEM der GameState erstellt wurde
         if trump_card:
             self.set_trump_from_card(trump_card, chooser=start_player)
-
-    # NEU: Methode zum manuellen Setzen der Trumpffarbe
-    def set_trump_suit_manually(self, suit_value: Optional[str]):
-        """Sets the trump suit from a string value, used for manual input."""
-        if self.game_state:
-            if suit_value is None or suit_value == "Keine":
-                self.game_state.trump_suit = None
-            else:
-                self.game_state.trump_suit = Suit(suit_value)
 
     def set_bids(self, bids: Dict[int, int]):
         """Speichert die Gebote und startet die Spielphase."""
@@ -108,43 +119,43 @@ class WizardGameManager:
             self.game_phase = "play_game"
             
     def set_trump_from_card(self, trump_card: Optional[Card], chooser: Optional[int] = None):
-        """Set the trump suit based on the trump card."""
+        """
+        Stellt den Trumpf-Zustand basierend auf der Karte ein.
+        Die GUI ist für die eigentliche Auswahl bei einem Zauberer verantwortlich.
+        """
         if not self.game_state:
             return
 
         self.game_state.trump_card = trump_card
-        self.wizard_trump_chooser = None
+        self.wizard_trump_chooser = None  # Immer zurücksetzen
 
         if not trump_card:
             self.game_state.trump_suit = None
             return
 
         if trump_card.suit == Suit.JESTER:
+            # Narr bedeutet keine Trumpffarbe
             self.game_state.trump_suit = None
         elif trump_card.suit == Suit.WIZARD:
+            # Zauberer bedeutet, der Startspieler muss wählen.
+            # Die GUI behandelt die Auswahl. Wir setzen hier nur den Zustand.
             if chooser is None:
                 chooser = (self.game_state.dealer + 1) % len(self.game_state.players)
-            if self.player_types.get(chooser) == "computer":
-                counts = {s: 0 for s in [Suit.RED, Suit.BLUE, Suit.GREEN, Suit.YELLOW]}
-                for c in self.game_state.hands.get(chooser, []):
-                    if c.suit in counts:
-                        counts[c.suit] += 1
-                preferred = max(counts, key=counts.get)
-                self.game_state.trump_suit = preferred
-            else:
-                self.game_state.trump_suit = None
-                self.wizard_trump_chooser = chooser
+            self.game_state.trump_suit = None # Noch unbestimmt
+            self.wizard_trump_chooser = chooser
         else:
+            # Eine normale Farbkarte bestimmt den Trumpf direkt.
             self.game_state.trump_suit = trump_card.suit
 
     def choose_trump_suit(self, suit_value: Optional[str]):
-        """Finalize trump suit selection when a Wizard was revealed."""
+        """Finalisiert die Trumpf-Wahl, nachdem ein Zauberer aufgedeckt wurde."""
         if not self.game_state or self.wizard_trump_chooser is None:
             return
         if suit_value is None or suit_value == "Keine":
             self.game_state.trump_suit = None
         else:
             self.game_state.trump_suit = Suit(suit_value)
+        # Sobald die Wahl getroffen wurde, wird der Chooser zurückgesetzt.
         self.wizard_trump_chooser = None
             
     def play_card(self, player_id: int, card: Card):
@@ -179,7 +190,7 @@ class WizardGameManager:
         winner = WizardRules.determine_trick_winner(
             self.game_state.current_trick_cards, 
             self.game_state.trump_suit,
-            self.game_state.last_wizard_wins # NEUES ARGUMENT
+            self.game_state.last_wizard_wins
         )
         self._save_last_trick(self.game_state.current_trick_cards, winner)
         
