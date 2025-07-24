@@ -225,7 +225,7 @@ class WizardRules:
                 if c.suit != Suit.JESTER:
                     return p
             return trick_cards[0][0]
-
+        
     @staticmethod
     def calculate_score(bid: int, tricks_won: int) -> int:
         """
