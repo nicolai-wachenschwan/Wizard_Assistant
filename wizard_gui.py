@@ -50,7 +50,6 @@ class WizardGUI:
     
     def init_ai_params(self):
         """Initialisiert die Standard-KI-Parameter im Session State."""
-        # --- CHANGE 3: AI Defaults erhöht ---
         if 'ai_card_sims' not in st.session_state:
             st.session_state.ai_card_sims = 2000
         if 'ai_card_dists' not in st.session_state:
@@ -58,7 +57,6 @@ class WizardGUI:
         if 'ai_bid_sims' not in st.session_state:
             st.session_state.ai_bid_sims = 800
 
-    # --- CHANGE 1: Spiel-Einstellungen initialisieren ---
     def init_game_settings(self):
         """Initialisiert die Spiel-Einstellungen im Session State, um sie über Spiele hinweg zu speichern."""
         if 'game_settings' not in st.session_state:
@@ -82,12 +80,19 @@ class WizardGUI:
         if st.session_state.history:
             st.session_state.game_manager = st.session_state.history.pop()
             # Bereinige temporäre Zustände, um die GUI zu aktualisieren
-            for key in ['selected_card_to_play', 'bid_recommendations', 'last_recommendations', 'bids_in_progress', 'trump_suit_choice', 'manual_suit_choice']:
+            for key in ['selected_card_to_play', 'bid_recommendations', 'last_recommendations', 'bids_in_progress', 'trump_suit_choice', 'manual_suit_choice', 'manual_trump_suit_choice']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
         else:
             st.toast("Keine weiteren Aktionen zum Rückgängigmachen vorhanden.")
+            
+    def _handle_trump_suit_change(self):
+        """Callback-Funktion, die bei Änderung des Trumpf-Dropdowns ausgelöst wird."""
+        if 'wizard_trump_selection_box' in st.session_state:
+            new_suit_value = st.session_state.wizard_trump_selection_box
+            self.save_state_for_undo()
+            self.game_manager.choose_trump_suit(new_suit_value)
 
     # --- DARSTELLUNGS-METHODEN (unverändert) ---
 
@@ -115,6 +120,10 @@ class WizardGUI:
     def display_game_overview(self):
         game_state = self.game_manager.game_state
         st.header(f"🎮 Runde {game_state.round_number} / Stich {game_state.current_trick + 1}")
+        
+        trump_display = game_state.trump_suit.value if game_state.trump_suit else "Keine"
+        st.metric("Trumpf", trump_display)
+
         overview_data = [{
                 "Spieler": f"{self.get_player_name(p)} ({'👤' if self.game_manager.player_types.get(p) == 'human' else '🤖'})",
                 "Gebot": game_state.bids.get(p, 0), "Stiche": game_state.tricks_won.get(p, 0),
@@ -122,7 +131,7 @@ class WizardGUI:
                 "Gesamt": self.game_manager.total_scores.get(p, 0)
             } for p in game_state.players]
         st.dataframe(pd.DataFrame(overview_data), use_container_width=True, hide_index=True)
-        st.metric("Trumpf", game_state.trump_suit.value if game_state.trump_suit else "Keine")
+
 
     def display_current_trick(self):
         game_state = self.game_manager.game_state
@@ -175,11 +184,9 @@ class WizardGUI:
 
         col1, col2 = st.columns(2)
         with col1:
-            # --- CHANGE 1: Lade Einstellungen aus session_state ---
             num_players = st.selectbox("Anzahl Spieler", [3, 4, 5, 6], index=[3, 4, 5, 6].index(settings["num_players"]), key="num_players_setup")
             max_rounds = 60 // num_players
             
-            # Stelle sicher, dass die Startrunde nicht höher als die maximal möglichen Runden ist
             valid_start_round = min(settings["start_round"], max_rounds)
             round_number = st.selectbox("Startrunde", list(range(1, max_rounds + 1)), index=valid_start_round - 1, key="round_number_setup")
 
@@ -199,19 +206,16 @@ class WizardGUI:
                 )
 
             st.subheader("Spielertypen")
-            # Stelle sicher, dass die Spielertypen für die aktuelle Spieleranzahl existieren
             current_player_types = settings.get("player_types", {})
             player_types = {i: st.selectbox(f"Typ {self.get_player_name(i)}", ["human", "computer"], index=["human", "computer"].index(current_player_types.get(i, "computer")), key=f"player_type_{i}") for i in range(num_players)}
             
             human_players = [i for i, t in player_types.items() if t == "human"]
             
-            # Stelle sicher, dass der Hauptspieler valide ist
             main_player_default_index = 0
             if settings["human_player_id"] in human_players:
                 main_player_default_index = human_players.index(settings["human_player_id"])
             human_player_id = st.selectbox("Hauptspieler (Sie)", human_players, index=main_player_default_index, format_func=lambda x: self.get_player_name(x)) if human_players else 0
 
-            # Stelle sicher, dass der Geber valide ist
             dealer_default_index = min(settings["dealer_id"], num_players - 1)
             dealer_id = st.selectbox(
                 "Kartengeber (Runde 1)",
@@ -224,7 +228,6 @@ class WizardGUI:
         if st.button("Spiel erstellen", type="primary"):
             self.save_state_for_undo()
             
-            # --- CHANGE 1: Speichere alle Einstellungen ---
             st.session_state.game_settings = {
                 "num_players": num_players,
                 "start_round": round_number,
@@ -248,94 +251,77 @@ class WizardGUI:
             )
             st.rerun()            
 
-    # --- CHANGE 2: Überarbeitete Logik für Trumpfwahl ---
     def human_hand_input_stage(self):
-        st.header(f"📜 Runde {self.game_manager.game_state.round_number} - Ihre Karten eingeben")
-        st.info("Da die Option 'Karten digital verteilen' deaktiviert ist, geben Sie bitte Ihre Handkarten ein.")
+        st.header(f"📜 Runde {self.game_manager.game_state.round_number} - Karten eingeben")
         
-        num_cards = self.game_manager.game_state.round_number
+        game_state = self.game_manager.game_state
+        num_cards = game_state.round_number
         player_id = self.game_manager.human_player_id
-        
-        st.subheader("Trumpfkarte wählen")
-        trump_card = self.game_manager.game_state.trump_card
+        num_players = len(game_state.players)
+        is_last_round = game_state.round_number == 60 // num_players
 
-        # Anzeige der gewählten Trumpfkarte und Rückgängig-Button
-        if trump_card is not None:
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                st.image(self.create_card_image(trump_card, width=60, height=90), caption=f"Trumpf: {trump_card}")
-            with col2:
-                if st.button("Trumpfwahl ändern", key="undo_trump"):
-                    self.save_state_for_undo()
-                    self.game_manager.set_trump_from_card(None)
-                    if 'wizard_trump_choice_made' in st.session_state:
-                         del st.session_state.wizard_trump_choice_made
-                    st.rerun()
-        # Auswahl der Trumpfkarte
-        else:
-            if 'trump_suit_choice' not in st.session_state:
-                suit_rows = [[Suit.RED, Suit.BLUE, Suit.GREEN], [Suit.YELLOW, Suit.WIZARD, Suit.JESTER]]
-                for row in suit_rows:
-                    cols = st.columns(len(row))
-                    for idx, suit in enumerate(row):
-                        if cols[idx].button(suit.value, key=f"trump_suit_{suit.value}"):
-                            # Zauberer oder Narr direkt setzen
-                            if suit in [Suit.WIZARD, Suit.JESTER]:
-                                self.save_state_for_undo()
-                                card = Card(suit, 1 if suit == Suit.WIZARD else 0)
-                                self.game_manager.set_trump_from_card(card)
+        # --- Teil 1: Trumpfkarte eingeben (nur wenn NICHT die letzte Runde) ---
+        if not is_last_round:
+            st.subheader("1. Trumpfkarte eingeben")
+            trump_card = game_state.trump_card
+
+            if trump_card:
+                col1, col2 = st.columns([1, 4])
+                with col1:
+                    st.image(self.create_card_image(trump_card, width=80, height=120), caption=f"Trumpf: {trump_card}")
+                with col2:
+                    if st.button("Trumpfkarte ändern", key="reset_trump_manual"):
+                        self.save_state_for_undo()
+                        self.game_manager.set_trump_from_card(None)
+                        if 'manual_trump_suit_choice' in st.session_state:
+                            del st.session_state.manual_trump_suit_choice
+                        st.rerun()
+            else:
+                st.write("Wählen Sie die aufgedeckte Trumpfkarte aus:")
+                if 'manual_trump_suit_choice' not in st.session_state:
+                    suit_rows = [[Suit.RED, Suit.BLUE, Suit.GREEN], [Suit.YELLOW, Suit.WIZARD, Suit.JESTER]]
+                    for row in suit_rows:
+                        cols = st.columns(len(row))
+                        for idx, suit in enumerate(row):
+                            if cols[idx].button(suit.value, key=f"trump_select_suit_{suit.value}"):
+                                st.session_state.manual_trump_suit_choice = suit
                                 st.rerun()
-                            else:
-                                st.session_state.trump_suit_choice = suit
-                                st.rerun()
-                if st.button("Kein Trumpf", key="trump_none"):
-                    self.save_state_for_undo()
-                    self.game_manager.set_trump_from_card(None)
-                    st.rerun()
-            else: # Wert für Farb-Trumpf auswählen
-                suit = st.session_state.trump_suit_choice
-                st.write(f"Farbe **{suit.value}** gewählt - Wert auswählen:")
-                value_rows = [range(1, 6), range(6, 11), range(11, 14)]
-                for row in value_rows:
-                    cols = st.columns(len(row))
-                    for idx, val in enumerate(row):
-                        if cols[idx].button(str(val), key=f"trump_val_{val}"):
-                            self.save_state_for_undo()
-                            card = Card(suit, val)
-                            self.game_manager.set_trump_from_card(card)
-                            del st.session_state.trump_suit_choice
-                            st.rerun()
+                else:
+                    suit = st.session_state.manual_trump_suit_choice
+                    if suit in [Suit.WIZARD, Suit.JESTER]:
+                        self.save_state_for_undo()
+                        card = Card(suit, 1 if suit == Suit.WIZARD else 0)
+                        start_player = (game_state.dealer + 1) % len(game_state.players)
+                        self.game_manager.set_trump_from_card(card, chooser=start_player)
+                        del st.session_state.manual_trump_suit_choice
+                        st.rerun()
+                    else:
+                        st.write(f"Farbe **{suit.value}** gewählt - Wert auswählen:")
+                        value_rows = [range(1, 6), range(6, 11), range(11, 14)]
+                        for row in value_rows:
+                            cols = st.columns(len(row))
+                            for idx, val in enumerate(row):
+                                if cols[idx].button(str(val), key=f"trump_select_val_{val}"):
+                                    self.save_state_for_undo()
+                                    card = Card(suit, val)
+                                    start_player = (game_state.dealer + 1) % len(game_state.players)
+                                    self.game_manager.set_trump_from_card(card, chooser=start_player)
+                                    del st.session_state.manual_trump_suit_choice
+                                    st.rerun()
+            st.divider()
 
-        # Wenn Trumpf ein Zauberer ist, Farbwahl anzeigen
-        if trump_card and trump_card.suit == Suit.WIZARD and not self.game_manager.game_state.trump_suit:
-             if 'wizard_trump_choice_made' not in st.session_state:
-                st.warning("Trumpfkarte ist ein Zauberer. Bitte Trumpffarbe wählen:")
-                choice = st.selectbox(
-                    "Trumpffarbe",
-                    [s.value for s in Suit if s not in [Suit.WIZARD, Suit.JESTER]],
-                    key="wizard_trump_select_manual",
-                )
-                if st.button("Trumpf setzen", key="wizard_trump_confirm_manual"):
-                    self.save_state_for_undo()
-                    self.game_manager.choose_trump_suit(choice)
-                    st.session_state.wizard_trump_choice_made = True
-                    st.rerun()
-
-        st.divider()
-
-        # Karteneingabe (unverändert)
-        entered_cards = self.game_manager.game_state.hands.get(player_id, [])
-        st.subheader(f"Karten eingeben ({len(entered_cards)}/{num_cards})")
+        # --- Teil 2: Handkarten eingeben ---
+        st.subheader(f"Ihre Karten eingeben ({len(game_state.hands.get(player_id, []))}/{num_cards})")
+        entered_cards = game_state.hands.get(player_id, [])
 
         if entered_cards:
-            cols = st.columns(min(10, len(entered_cards)))
+            cols = st.columns(min(10, len(entered_cards) or 1))
             for i, c in enumerate(entered_cards):
                 with cols[i % 10]:
                     st.image(self.create_card_image(c, width=60, height=90), caption=str(c))
 
         if len(entered_cards) < num_cards:
             st.subheader(f"Karte {len(entered_cards)+1} auswählen")
-
             if 'manual_suit_choice' not in st.session_state:
                 suit_rows = [[Suit.RED, Suit.BLUE, Suit.GREEN], [Suit.YELLOW, Suit.WIZARD, Suit.JESTER]]
                 for row in suit_rows:
@@ -346,13 +332,9 @@ class WizardGUI:
                             st.rerun()
             else:
                 suit_val = st.session_state.manual_suit_choice
+                card_to_add = None
                 if suit_val in [Suit.WIZARD.value, Suit.JESTER.value]:
-                    card = Card(Suit.WIZARD, 1) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 1)
-                    if st.button("Karte übernehmen", key=f"confirm_special_{len(entered_cards)}"):
-                        self.save_state_for_undo()
-                        self.game_manager.game_state.hands[player_id].append(card)
-                        del st.session_state.manual_suit_choice
-                        st.rerun()
+                    card_to_add = Card(Suit(suit_val), 1)
                 else:
                     st.write(f"Farbe **{suit_val}** gewählt - Wert auswählen:")
                     value_rows = [range(1,6), range(6,11), range(11,14)]
@@ -360,83 +342,96 @@ class WizardGUI:
                         cols = st.columns(len(row))
                         for idx, val in enumerate(row):
                             if cols[idx].button(str(val), key=f"val_btn_{len(entered_cards)}_{val}"):
-                                self.save_state_for_undo()
-                                self.game_manager.game_state.hands[player_id].append(Card(Suit(suit_val), val))
-                                del st.session_state.manual_suit_choice
-                                st.rerun()
-        else:
-            if st.button("Karten & Trumpf bestätigen und zur Gebotsphase wechseln", type="primary"):
-                try:
+                                card_to_add = Card(Suit(suit_val), val)
+                
+                if card_to_add:
                     self.save_state_for_undo()
-                    hand_cards = self.game_manager.game_state.hands.get(player_id, [])
-                    self.game_manager.set_player_hand(player_id, hand_cards)
-                    # Trumpf ist bereits im game_manager gesetzt, kein erneuter Aufruf nötig
+                    self.game_manager.game_state.hands[player_id].append(card_to_add)
+                    del st.session_state.manual_suit_choice
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Fehler bei der Karteneingabe: {e}")
+        
+        # --- Teil 3: Bestätigung ---
+        if self.game_manager.is_human_hand_set():
+            if st.button("Karten bestätigen und zur Gebotsphase wechseln", type="primary"):
+                self.save_state_for_undo()
+                st.rerun()
+        else:
+            if is_last_round:
+                st.warning("Bitte alle Ihre Handkarten eingeben.")
+            else:
+                st.warning("Bitte zuerst die Trumpfkarte und alle Ihre Handkarten eingeben.")
 
 
     def bidding_stage(self):
         game_state = self.game_manager.game_state
         st.header(f"📜 Runde {game_state.round_number} - Gebote abgeben")
 
-        # Logik für die Wahl der Trumpffarbe, wenn ein Zauberer aufgedeckt wurde
-        if self.game_manager.wizard_trump_chooser is not None and not game_state.trump_suit:
-            chooser_id = self.game_manager.wizard_trump_chooser
-            chooser_type = self.game_manager.player_types.get(chooser_id, "human")
-            st.warning(f"Trumpfkarte war ein Zauberer. **{self.get_player_name(chooser_id)}** wählt die Trumpffarbe.")
+        # --- ZENTRALES TRUMPF-WIDGET ---
+        st.subheader("Trumpf")
+        trump_card = game_state.trump_card
+        col1, col2 = st.columns([1, 4])
 
-            if chooser_type == 'computer':
-                if st.button(f"🤖 {self.get_player_name(chooser_id)} wählt Trumpf"):
-                    self.save_state_for_undo()
-                    hand = game_state.hands.get(chooser_id, [])
-                    if hand:
-                        # Zähle die Farben (ohne Sonderkarten)
-                        suit_counts = Counter(c.suit for c in hand if c.suit not in [Suit.WIZARD, Suit.JESTER])
-                        # Wähle die häufigste Farbe, bei Gleichstand eine zufällige der häufigsten
+        with col1:
+            if trump_card:
+                st.image(self.create_card_image(trump_card, width=100, height=150), caption=f"Aufgedeckt: {trump_card}")
+            else:
+                st.info("Keine Trumpfkarte (letzte Runde).")
+        
+        with col2:
+            is_choice_pending = self.game_manager.wizard_trump_chooser is not None and game_state.trump_suit is None
+            
+            if is_choice_pending:
+                chooser_id = self.game_manager.wizard_trump_chooser
+                chooser_type = self.game_manager.player_types.get(chooser_id, "human")
+
+                if chooser_type == 'computer':
+                    st.warning(f"Trumpfkarte ist ein Zauberer! **{self.get_player_name(chooser_id)} (🤖)** wählt die Farbe.")
+                    if st.button(f"🤖 {self.get_player_name(chooser_id)} wählen lassen"):
+                        self.save_state_for_undo()
+                        hand = game_state.hands.get(chooser_id, [])
+                        suit_counts = Counter(c.suit for c in hand if c.suit in [Suit.RED, Suit.BLUE, Suit.GREEN, Suit.YELLOW])
                         if suit_counts:
                             most_common_suit = suit_counts.most_common(1)[0][0]
                             self.game_manager.choose_trump_suit(most_common_suit.value)
-                        else: # Nur Sonderkarten auf der Hand
-                            self.game_manager.choose_trump_suit(Suit.RED.value) # Fallback
-                    else: # Keine Hand? Fallback
-                        self.game_manager.choose_trump_suit(Suit.RED.value)
-                    st.rerun()
-            else: # Menschlicher Spieler wählt
-                # --- CHANGE 2: Vorbelegung für AI-Spieler ---
-                # Diese Logik wird nun direkt oben bei chooser_type == 'computer' behandelt.
-                # Hier bleibt die manuelle Auswahl für menschliche Spieler.
-                choice = st.selectbox(
-                    "Trumpffarbe",
-                    [s.value for s in Suit if s not in [Suit.WIZARD, Suit.JESTER]],
-                    key="wizard_trump_select",
-                )
-                if st.button("Trumpf setzen", key="wizard_trump_confirm"):
-                    self.save_state_for_undo()
-                    self.game_manager.choose_trump_suit(choice)
-                    st.rerun()
-            return # Stoppe die Ausführung hier, bis der Trumpf gewählt wurde
+                        else: # Fallback
+                            self.game_manager.choose_trump_suit(Suit.RED.value)
+                        st.rerun()
+                else: # Human chooser
+                    st.warning(f"Trumpfkarte ist ein Zauberer! **{self.get_player_name(chooser_id)} (👤)** muss die Farbe wählen.")
+                    is_this_human_the_chooser = self.game_manager.human_player_id == chooser_id
+                    options = [s.value for s in Suit if s not in [Suit.WIZARD, Suit.JESTER]]
+                    
+                    st.selectbox(
+                        "Wähle die Trumpffarbe:",
+                        options,
+                        key="wizard_trump_selection_box",
+                        disabled=not is_this_human_the_chooser,
+                        on_change=self._handle_trump_suit_change
+                    )
+            else:
+                final_trump_suit = game_state.trump_suit.value if game_state.trump_suit else "Keine"
+                st.text_input("Trumpffarbe", value=final_trump_suit, disabled=True, key="trump_display")
 
+        # --- ANZEIGE DER KARTEN & GEBOTE ---
         if self.game_manager.deal_digitally:
             st.subheader(f"Ihre Karten ({self.get_player_name(self.game_manager.human_player_id)})")
-            main_col, trump_col = st.columns([4, 1])
-            with trump_col:
-                st.metric("Trumpf", game_state.trump_suit.value if game_state.trump_suit else "Keine")
-            with main_col:
-                hand = game_state.hands.get(self.game_manager.human_player_id, [])
-                if hand:
-                    cols = st.columns(len(hand))
-                    for i, card in enumerate(hand):
-                        with cols[i]:
-                            st.image(self.create_card_image(card, width=60, height=90), caption=str(card))
-        else:
-             st.metric("Trumpf", game_state.trump_suit.value if game_state.trump_suit else "Keine")
+            hand = game_state.hands.get(self.game_manager.human_player_id, [])
+            if hand:
+                cols = st.columns(len(hand) or 1)
+                for i, card in enumerate(hand):
+                    with cols[i]:
+                        st.image(self.create_card_image(card, width=60, height=90), caption=str(card))
 
         st.divider()
         st.subheader("Gebote der Spieler")
         
         if 'bids_in_progress' not in st.session_state:
             st.session_state.bids_in_progress = {p: -1 for p in game_state.players}
+
+        # Blockiere Gebote, bis Trumpf feststeht
+        bidding_disabled = is_choice_pending
+        if bidding_disabled:
+            st.info("Bitte warten, bis die Trumpffarbe gewählt wurde.")
 
         for p in game_state.players:
             widget_key = f"bid_input_{p}"
@@ -450,9 +445,10 @@ class WizardGUI:
                     f"{self.get_player_name(i)} ({'👤' if self.game_manager.player_types.get(i) == 'human' else '🤖'})",
                     min_value=-1, max_value=game_state.round_number, 
                     value=st.session_state.bids_in_progress[i], 
-                    key=f"bid_input_{i}"
+                    key=f"bid_input_{i}",
+                    disabled=bidding_disabled
                 )
-                if st.button("Empfehlung", key=f"rec_btn_{i}"):
+                if st.button("Empfehlung", key=f"rec_btn_{i}", disabled=bidding_disabled):
                     with st.spinner(f"Simuliere Gebote für {self.get_player_name(i)}..."):
                         st.session_state.bid_recommendations = self.bid_recommender.recommend_bid(game_state, i)
                         st.session_state.bid_rec_player = i
@@ -462,7 +458,7 @@ class WizardGUI:
             if self.game_manager.player_types.get(p) == 'computer' and st.session_state.bids_in_progress.get(p, -1) == -1
         ]
         if computer_players_without_bid:
-            if st.button("🤖 Computer-Gebote ausfüllen", type="secondary"):
+            if st.button("🤖 Computer-Gebote ausfüllen", type="secondary", disabled=bidding_disabled):
                 self.fill_computer_bids(computer_players_without_bid)
 
         if 'bid_recommendations' in st.session_state:
@@ -478,14 +474,14 @@ class WizardGUI:
                 else:
                     st.warning("Keine Empfehlung möglich.")
 
-        if all(b != -1 for b in st.session_state.bids_in_progress.values()):
+        if all(b != -1 for b in st.session_state.bids_in_progress.values()) and not bidding_disabled:
             if st.button("Spiel mit diesen Geboten starten", type="primary"):
                 self.save_state_for_undo()
                 self.game_manager.set_bids(st.session_state.bids_in_progress)
                 del st.session_state.bids_in_progress
                 if 'bid_recommendations' in st.session_state: del st.session_state.bid_recommendations
                 st.rerun()
-        else:
+        elif not bidding_disabled:
             st.warning("Bitte geben Sie alle Gebote ein, bevor das Spiel gestartet wird.")
 
     def play_game_stage(self):
@@ -556,7 +552,7 @@ class WizardGUI:
         cards_per_row = 10
         for i in range(0, len(hand), cards_per_row):
             row_cards = hand[i:i+cards_per_row]
-            cols = st.columns(len(row_cards))
+            cols = st.columns(len(row_cards) or 1)
             for j, card in enumerate(row_cards):
                 with cols[j]:
                     is_valid = WizardRules.is_valid_play(card, hand, game_state.current_trick_cards, game_state.trump_suit)
@@ -587,13 +583,9 @@ class WizardGUI:
                         st.rerun()
         else:
             suit_val = st.session_state[suit_key]
+            card_to_play = None
             if suit_val in [Suit.WIZARD.value, Suit.JESTER.value]:
-                card = Card(Suit.WIZARD, 1) if suit_val == Suit.WIZARD.value else Card(Suit.JESTER, 1)
-                if st.button("Karte spielen", key=f"play_special_{player_id}"):
-                    self.save_state_for_undo()
-                    self.game_manager.play_card(player_id, card)
-                    del st.session_state[suit_key]
-                    st.rerun()
+                card_to_play = Card(Suit(suit_val), 1)
             else:
                 st.write(f"Farbe **{suit_val}** gewählt - Wert auswählen:")
                 value_rows = [range(1,6), range(6,11), range(11,14)]
@@ -601,10 +593,13 @@ class WizardGUI:
                     cols = st.columns(len(row))
                     for idx, val in enumerate(row):
                         if cols[idx].button(str(val), key=f"h_val_{player_id}_{val}"):
-                            self.save_state_for_undo()
-                            self.game_manager.play_card(player_id, Card(Suit(suit_val), val))
-                            del st.session_state[suit_key]
-                            st.rerun()
+                            card_to_play = Card(Suit(suit_val), val)
+
+            if card_to_play:
+                self.save_state_for_undo()
+                self.game_manager.play_card(player_id, card_to_play)
+                del st.session_state[suit_key]
+                st.rerun()
 
 
     def play_computer_move(self, player_id: int):
@@ -642,7 +637,6 @@ class WizardGUI:
 
     # --- STEUERUNG & HAUPTFUNKTION ---
 
-    # --- CHANGE 1: Überarbeitete Reset-Funktion ---
     def _reset_for_new_game(self):
         """Clears gameplay related session state but keeps setup options and player names."""
         keys_to_keep = {
@@ -709,9 +703,11 @@ class WizardGUI:
                     st.rerun()
 
     def run(self):
-        st.title("🧙‍♂️ Wizard Assistant GUI")
+        st.title("🧙‍♂️ Wizard Assistant")
         try:
-            st.image("1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png", use_container_width=True)
+            # Du kannst hier einen lokalen Pfad oder eine URL zu einem Bild einfügen
+            # st.image("path/to/your/image.png", use_container_width=True)
+            pass
         except Exception:
             st.info("Titelbild nicht gefunden.")
 
