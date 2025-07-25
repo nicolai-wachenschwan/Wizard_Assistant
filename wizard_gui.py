@@ -704,7 +704,7 @@ class WizardGUI:
 
     def run(self):
         st.title("🧙‍♂️ Wizard Assistant GUI")
-        st.write("Willkommen! Dieser Assistent soll dir beim Kartenspiel Wizard helfen. Du kannst entweder mit 'Karten digital verteilen' gegen den Computer trainieren oder mit physischen mit anderen Mitspielern spielen. Die Oberfläche kann noch einen Feinschliff gebauchen, trage gerne etwas bei, wenn du möchtest!"  
+        st.write("Willkommen! Dieser Assistent soll dir beim Kartenspiel Wizard helfen. Du kannst entweder mit 'Karten digital verteilen' gegen den Computer trainieren oder mit physischen mit anderen Mitspielern spielen. Die Oberfläche kann noch einen Feinschliff gebauchen, trage gerne etwas bei, wenn du möchtest!")  
         try:
             st.image("1F7B18D8-2B4B-4FB2-BE97-EE999F377E35.png", use_container_width=True)
         except Exception:
