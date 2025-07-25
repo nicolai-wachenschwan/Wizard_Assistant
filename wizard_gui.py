@@ -405,7 +405,7 @@ class WizardGUI:
                         "Wähle die Trumpffarbe:",
                         options,
                         key="wizard_trump_selection_box",
-                        disabled=not is_this_human_the_chooser,
+                        #disabled=not is_this_human_the_chooser,
                         on_change=self._handle_trump_suit_change
                     )
             else:
