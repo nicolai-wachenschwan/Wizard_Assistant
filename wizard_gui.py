@@ -401,7 +401,7 @@ class WizardGUI:
                     is_this_human_the_chooser = self.game_manager.human_player_id == chooser_id
                     options = [s.value for s in Suit if s not in [Suit.WIZARD, Suit.JESTER]]
                     options.append(None)
-                    options.append(Suit.RED)
+                    options.instert(0,"wählen")
                     
                     st.selectbox(
                         "Wähle die Trumpffarbe:",
